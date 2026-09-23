@@ -1,0 +1,48 @@
+{
+  "steps": [
+    {
+      "step": "load_raw",
+      "detail": "54,546 raw visit rows loaded"
+    },
+    {
+      "step": "drop_duplicates",
+      "detail": "removed 271 duplicate visit_id rows (0.50% of raw extract)"
+    },
+    {
+      "step": "parse_datetimes",
+      "detail": "parsed mixed ISO/US datetime formats across 4 columns (0 unparseable values found)"
+    },
+    {
+      "step": "clean_billing",
+      "detail": "stripped currency symbols/commas from billing_amount (0 coercion failures)"
+    },
+    {
+      "step": "normalize_gender",
+      "detail": "standardized gender labels; imputed 1,069 missing values (1.96% of raw extract) as 'Unknown'"
+    },
+    {
+      "step": "normalize_admission_type",
+      "detail": "standardized admission_type casing (title case)"
+    },
+    {
+      "step": "impute_age",
+      "detail": "imputed 1,656 missing age values (3.04% of raw extract) with department median"
+    },
+    {
+      "step": "impute_satisfaction",
+      "detail": "imputed 2,151 missing satisfaction_score values (3.94% of raw extract) with department median"
+    },
+    {
+      "step": "drop_invalid_wait_times",
+      "detail": "removed 145 rows with negative wait_time_minutes"
+    },
+    {
+      "step": "summary",
+      "detail": "54,546 raw rows -> 54,130 clean rows (0.76% removed as invalid/duplicate; missing values imputed rather than dropped)"
+    },
+    {
+      "step": "load_sqlite",
+      "detail": "loaded star schema into data\\processed\\hospital.db"
+    }
+  ]
+}

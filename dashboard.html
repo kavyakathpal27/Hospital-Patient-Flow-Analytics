@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hospital Patient Flow &amp; Operations Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6;
+    --good:           #0ca30c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --good:           #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page-plane:     #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-1:       #3987e5;
+    --good:           #0ca30c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page-plane);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 16px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+  h1 { font-size: 20px; margin: 0; }
+  .subtitle { color: var(--text-secondary); font-size: 13px; margin: 4px 0 20px; }
+  .theme-toggle {
+    font-size: 12px; color: var(--text-secondary); background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; cursor: pointer;
+  }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .kpi {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .kpi .label { font-size: 12px; color: var(--text-secondary); }
+  .kpi .value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+  .kpi .sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 14px; }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px;
+  }
+  .card h2 { font-size: 14px; margin: 0 0 2px; }
+  .card .desc { font-size: 12px; color: var(--text-secondary); margin: 0 0 12px; }
+  .card canvas { max-height: 280px; }
+  .findings { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-top: 14px; }
+  .findings h2 { font-size: 14px; margin: 0 0 10px; }
+  .findings ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+  .findings li b { color: var(--text-primary); }
+  footer { text-align: center; font-size: 11px; color: var(--text-muted); margin: 24px 0 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Hospital Patient Flow &amp; Operations Analytics</h1>
+    <button class="theme-toggle" id="themeToggle">Toggle dark mode</button>
+  </header>
+  <p class="subtitle" id="subtitle"></p>
+
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Average wait time vs. target, by department</h2>
+      <p class="desc">Bar = observed average wait; diamond marker = department's operational target.</p>
+      <canvas id="waitChart"></canvas>
+    </div>
+    <div class="card">
+      <h2>Staffing ratio vs. wait time (within-department)</h2>
+      <p class="desc" id="scatterDesc"></p>
+      <canvas id="scatterChart"></canvas>
+    </div>
+    <div class="card">
+      <h2>Bed utilization by department</h2>
+      <p class="desc">Average concurrent occupancy as % of bed capacity; dashed line = 100% capacity.</p>
+      <canvas id="utilChart"></canvas>
+    </div>
+    <div class="card">
+      <h2>Monthly visit volume (all departments)</h2>
+      <p class="desc">Seasonality driven mostly by Emergency flu-season volume (Dec-Feb).</p>
+      <canvas id="trendChart"></canvas>
+    </div>
+    <div class="card" style="grid-column: 1 / -1;">
+      <h2>Top under-staffed bottleneck shifts</h2>
+      <p class="desc">Department/shift combinations most frequently flagged in the top quartile of patients-per-nurse.</p>
+      <canvas id="bottleneckChart"></canvas>
+    </div>
+  </div>
+
+  <div class="findings">
+    <h2>Key findings</h2>
+    <ul id="findingsList"></ul>
+  </div>
+
+  <footer>Synthetic dataset generated for this project (see README.md) &middot; Built with Python/Pandas/SciPy + Chart.js</footer>
+</div>
+
+<script>
+const DATA = {"deptOrder": ["Emergency", "Cardiology", "Orthopedics", "General Surgery", "Pediatrics", "Internal Medicine", "Obstetrics & Gynecology", "Neurology"], "colorLight": {"Emergency": "#2a78d6", "Cardiology": "#eb6834", "Orthopedics": "#1baf7a", "General Surgery": "#eda100", "Pediatrics": "#e87ba4", "Internal Medicine": "#008300", "Obstetrics & Gynecology": "#4a3aa7", "Neurology": "#e34948"}, "colorDark": {"Emergency": "#3987e5", "Cardiology": "#d95926", "Orthopedics": "#199e70", "General Surgery": "#c98500", "Pediatrics": "#d55181", "Internal Medicine": "#008300", "Obstetrics & Gynecology": "#9085e9", "Neurology": "#e66767"}, "kpis": {"totalVisits": 54130, "totalDepartments": 8, "dateRange": ["2024-01-01", "2024-12-31"], "avgWaitOverall": 28.1, "avgSatisfaction": 3.85, "avgUtilization": 80.5, "pctShiftsFlagged": 25.1, "projectedReductionMin": 2.3}, "waitVsTarget": [{"name": "Emergency", "avgWait": 32.08, "target": 30, "pctAboveTarget": 6.93}, {"name": "Cardiology", "avgWait": 26.96, "target": 45, "pctAboveTarget": -40.09}, {"name": "Orthopedics", "avgWait": 26.28, "target": 45, "pctAboveTarget": -41.6}, {"name": "General Surgery", "avgWait": 31.25, "target": 60, "pctAboveTarget": -47.91}, {"name": "Pediatrics", "avgWait": 28.99, "target": 40, "pctAboveTarget": -27.52}, {"name": "Internal Medicine", "avgWait": 27.44, "target": 45, "pctAboveTarget": -39.02}, {"name": "Obstetrics & Gynecology", "avgWait": 23.61, "target": 40, "pctAboveTarget": -40.97}, {"name": "Neurology", "avgWait": 27.84, "target": 50, "pctAboveTarget": -44.33}], "bedUtilization": [{"name": "Pediatrics", "avg": 104.1, "peak": 172.5}, {"name": "Emergency", "avg": 83.7, "peak": 148.9}, {"name": "Internal Medicine", "avg": 79.7, "peak": 129.3}, {"name": "General Surgery", "avg": 78.7, "peak": 126.2}, {"name": "Cardiology", "avg": 77.8, "peak": 134.8}, {"name": "Orthopedics", "avg": 74.8, "peak": 129.3}, {"name": "Obstetrics & Gynecology", "avg": 74.0, "peak": 118.4}, {"name": "Neurology", "avg": 71.4, "peak": 115.2}], "monthlyTrend": [{"month": 1, "visits": 5102}, {"month": 2, "visits": 4715}, {"month": 3, "visits": 4540}, {"month": 4, "visits": 4330}, {"month": 5, "visits": 4470}, {"month": 6, "visits": 4324}, {"month": 7, "visits": 4206}, {"month": 8, "visits": 4232}, {"month": 9, "visits": 4415}, {"month": 10, "visits": 4412}, {"month": 11, "visits": 4348}, {"month": 12, "visits": 5036}], "scatter": [{"x": 0.23, "y": 2.6}, {"x": -0.15, "y": -2.3}, {"x": -0.15, "y": -0.8}, {"x": -0.29, "y": -2.3}, {"x": -0.43, "y": -4.1}, {"x": 0.38, "y": 4.3}, {"x": 1.0, "y": 10.6}, {"x": 0.8, "y": 1.3}, {"x": -0.18, "y": -2.4}, {"x": -0.61, "y": -1.7}, {"x": -0.39, "y": -2.2}, {"x": -0.11, "y": -4.1}, {"x": 1.24, "y": 10.4}, {"x": -0.93, "y": -6.3}, {"x": 0.18, "y": 2.9}, {"x": -0.26, "y": -2.7}, {"x": -0.49, "y": -9.1}, {"x": -0.54, "y": -9.4}, {"x": -0.32, "y": 0.2}, {"x": -0.61, "y": -12.2}, {"x": -0.46, "y": -8.1}, {"x": -0.76, "y": -6.7}, {"x": 0.61, "y": 3.0}, {"x": -0.79, "y": -5.5}, {"x": 0.14, "y": 5.7}, {"x": -0.54, "y": 1.7}, {"x": 1.67, "y": 11.2}, {"x": 1.24, "y": 11.3}, {"x": 0.89, "y": 6.8}, {"x": -0.53, "y": -2.4}, {"x": -0.02, "y": 2.8}, {"x": -0.03, "y": 1.1}, {"x": -0.25, "y": -5.2}, {"x": 0.01, "y": -0.5}, {"x": -0.43, "y": -3.3}, {"x": 0.17, "y": 0.0}, {"x": 0.14, "y": 2.9}, {"x": -0.57, "y": 2.8}, {"x": 0.11, "y": 0.9}, {"x": 0.32, "y": 1.9}, {"x": -0.2, "y": -4.1}, {"x": 0.4, "y": 4.6}, {"x": 2.5, "y": 16.7}, {"x": -0.23, "y": -1.7}, {"x": 0.57, "y": 1.9}, {"x": 0.6, "y": 2.3}, {"x": 0.61, "y": 7.1}, {"x": -0.16, "y": -0.6}, {"x": 0.21, "y": 1.3}, {"x": 0.8, "y": 3.4}, {"x": -0.23, "y": -3.0}, {"x": -0.04, "y": 0.3}, {"x": -0.05, "y": -0.7}, {"x": -0.32, "y": -0.3}, {"x": -0.22, "y": -4.7}, {"x": -0.32, "y": 0.2}, {"x": -0.09, "y": 0.4}, {"x": 0.57, "y": 2.5}, {"x": -0.32, "y": -0.7}, {"x": 2.07, "y": 14.2}, {"x": -0.33, "y": -5.4}, {"x": -0.5, "y": -0.1}, {"x": -1.1, "y": -7.3}, {"x": -0.04, "y": -1.2}, {"x": 0.51, "y": 3.9}, {"x": -0.54, "y": -1.7}, {"x": -0.2, "y": -4.4}, {"x": 0.23, "y": -0.2}, {"x": -0.49, "y": -3.1}, {"x": -0.13, "y": -5.6}, {"x": -0.49, "y": -0.3}, {"x": 0.16, "y": 1.0}, {"x": -0.32, "y": 1.2}, {"x": -0.57, "y": -4.5}, {"x": 0.68, "y": 5.7}, {"x": -1.13, "y": -9.0}, {"x": -0.42, "y": -4.7}, {"x": 0.07, "y": -1.3}, {"x": 0.0, "y": 0.6}, {"x": 0.31, "y": 2.7}, {"x": -0.29, "y": -2.6}, {"x": -0.79, "y": -5.8}, {"x": -0.55, "y": -7.7}, {"x": 0.67, "y": 3.6}, {"x": 0.75, "y": 8.7}, {"x": 0.0, "y": -0.7}, {"x": -0.54, "y": -5.3}, {"x": -0.2, "y": -0.7}, {"x": -1.33, "y": -11.7}, {"x": -0.36, "y": -0.1}, {"x": -0.53, "y": -0.1}, {"x": -0.23, "y": -2.7}, {"x": 0.97, "y": 6.8}, {"x": -0.02, "y": -2.1}, {"x": -0.09, "y": -3.3}, {"x": 0.56, "y": 3.8}, {"x": 0.47, "y": 4.8}, {"x": 0.47, "y": 4.7}, {"x": 0.77, "y": 4.7}, {"x": -0.29, "y": -7.1}, {"x": 0.04, "y": 0.5}, {"x": -0.03, "y": 2.3}, {"x": -0.43, "y": -10.4}, {"x": 1.57, "y": 11.5}, {"x": -0.4, "y": -6.8}, {"x": 0.2, "y": 3.1}, {"x": -0.7, "y": -5.3}, {"x": 1.4, "y": 7.8}, {"x": 0.34, "y": 4.1}, {"x": 0.39, "y": 3.6}, {"x": -0.02, "y": 2.4}, {"x": -0.59, "y": -6.4}, {"x": -0.16, "y": -4.5}, {"x": 3.23, "y": 22.7}, {"x": -1.5, "y": -10.8}, {"x": 0.8, "y": 5.9}, {"x": -0.93, "y": -5.2}, {"x": -0.11, "y": 2.0}, {"x": 0.01, "y": 1.0}, {"x": 1.57, "y": 11.5}, {"x": 0.36, "y": 5.0}, {"x": -0.53, "y": -9.7}, {"x": 0.18, "y": -1.1}, {"x": 0.96, "y": 7.6}, {"x": 0.2, "y": 3.7}, {"x": 0.21, "y": 2.6}, {"x": -0.22, "y": -2.0}, {"x": 0.11, "y": -1.7}, {"x": 0.67, "y": 4.0}, {"x": 0.21, "y": 1.5}, {"x": 0.39, "y": 2.7}, {"x": -0.49, "y": -10.4}, {"x": 0.17, "y": 1.2}, {"x": 0.8, "y": 3.6}, {"x": -0.43, "y": 0.7}, {"x": -0.55, "y": -3.9}, {"x": 0.31, "y": 1.3}, {"x": 1.13, "y": 9.0}, {"x": 0.2, "y": -0.4}, {"x": -0.93, "y": -5.7}, {"x": -0.76, "y": -4.9}, {"x": 0.3, "y": 2.8}, {"x": -0.55, "y": -5.2}, {"x": 1.12, "y": 7.3}, {"x": -0.16, "y": -2.7}, {"x": 0.77, "y": 6.2}, {"x": -0.46, "y": 0.9}, {"x": -0.53, "y": -2.7}, {"x": -0.22, "y": -0.7}, {"x": -0.36, "y": -6.1}, {"x": -0.22, "y": -4.6}, {"x": 0.32, "y": 1.5}, {"x": 2.18, "y": 17.9}, {"x": 1.0, "y": 6.4}, {"x": 0.67, "y": 4.2}, {"x": 0.51, "y": 1.6}, {"x": -0.1, "y": -1.2}, {"x": -0.84, "y": -9.9}, {"x": 1.24, "y": 6.5}, {"x": 0.17, "y": 3.3}, {"x": -0.4, "y": -3.2}, {"x": -0.04, "y": 5.2}, {"x": 1.17, "y": 8.0}, {"x": -0.16, "y": 2.2}, {"x": -0.49, "y": -4.9}, {"x": 1.12, "y": 7.1}, {"x": -0.16, "y": -4.1}, {"x": 0.68, "y": 6.3}, {"x": -0.18, "y": 3.4}, {"x": -0.75, "y": -3.5}, {"x": -0.61, "y": -6.5}, {"x": -0.26, "y": 1.7}, {"x": 0.34, "y": 1.7}, {"x": -0.43, "y": -2.2}, {"x": -0.39, "y": 3.2}, {"x": -0.5, "y": -3.8}, {"x": 1.57, "y": 12.8}, {"x": 0.82, "y": 7.4}, {"x": -1.1, "y": -6.9}, {"x": 0.07, "y": 3.6}, {"x": 0.17, "y": 2.4}, {"x": -0.5, "y": -6.6}, {"x": 0.3, "y": 3.5}, {"x": -0.29, "y": -5.2}, {"x": 0.14, "y": -2.9}, {"x": -0.32, "y": -4.1}, {"x": -0.61, "y": -3.0}, {"x": 0.0, "y": -0.1}, {"x": -0.1, "y": 0.9}, {"x": 0.0, "y": -4.1}, {"x": -0.49, "y": 3.4}, {"x": 0.0, "y": -2.8}, {"x": 0.13, "y": -1.0}, {"x": -0.32, "y": -1.1}, {"x": -1.73, "y": -9.7}, {"x": 0.56, "y": 1.9}, {"x": -0.46, "y": -3.0}, {"x": -0.66, "y": -4.4}, {"x": -0.02, "y": -6.6}, {"x": -0.66, "y": -0.3}, {"x": 0.46, "y": 7.1}, {"x": 0.67, "y": 2.6}, {"x": -0.07, "y": -2.3}, {"x": 0.41, "y": -0.7}, {"x": -0.13, "y": -1.7}, {"x": 0.32, "y": 2.4}, {"x": -1.1, "y": 2.1}, {"x": 0.89, "y": 4.2}, {"x": -0.22, "y": -11.5}, {"x": -1.1, "y": -14.9}, {"x": -0.16, "y": -0.7}, {"x": -0.29, "y": 1.3}, {"x": -0.15, "y": 0.6}, {"x": -0.79, "y": -7.6}, {"x": -0.18, "y": -1.7}, {"x": -0.54, "y": 1.0}, {"x": -0.37, "y": 0.8}, {"x": 0.67, "y": 5.4}, {"x": 0.3, "y": 2.8}, {"x": -0.6, "y": 2.3}, {"x": -2.0, "y": -12.1}, {"x": 1.37, "y": 10.5}, {"x": 0.31, "y": 4.5}, {"x": 0.8, "y": 5.5}, {"x": -0.32, "y": -2.1}, {"x": -0.16, "y": 0.7}, {"x": 0.21, "y": 0.5}, {"x": -0.43, "y": -1.9}, {"x": -1.5, "y": -12.3}, {"x": 0.87, "y": 6.5}, {"x": -0.13, "y": 3.4}, {"x": -0.46, "y": -5.8}, {"x": 0.93, "y": 8.9}, {"x": 0.57, "y": 4.1}, {"x": -0.03, "y": -2.1}, {"x": -0.09, "y": -2.9}, {"x": 0.32, "y": 2.3}, {"x": -0.73, "y": -6.2}, {"x": -1.93, "y": -12.4}, {"x": -0.43, "y": -10.8}, {"x": 0.6, "y": 6.8}, {"x": 0.0, "y": -0.8}, {"x": -0.04, "y": -2.5}, {"x": -0.29, "y": -1.8}, {"x": -0.24, "y": -3.0}, {"x": -0.79, "y": -4.0}, {"x": 0.18, "y": 4.1}, {"x": 0.17, "y": 2.2}, {"x": -0.51, "y": -1.0}, {"x": -0.39, "y": -10.4}, {"x": -0.29, "y": 0.2}, {"x": 0.51, "y": 2.8}, {"x": -0.5, "y": -6.2}, {"x": -0.22, "y": 3.5}, {"x": 0.63, "y": 4.2}, {"x": -0.42, "y": -2.8}, {"x": 0.36, "y": -1.9}, {"x": -0.04, "y": 0.4}, {"x": -0.16, "y": -1.6}, {"x": 0.45, "y": 6.8}, {"x": 0.11, "y": -0.5}, {"x": 0.27, "y": 2.6}, {"x": 0.07, "y": 3.6}, {"x": -0.32, "y": -2.8}, {"x": 0.0, "y": 0.0}, {"x": -0.46, "y": -4.9}, {"x": -0.22, "y": -3.4}, {"x": 0.01, "y": 2.4}, {"x": 0.67, "y": 3.9}, {"x": 0.31, "y": -1.3}, {"x": 0.18, "y": -1.4}, {"x": 0.43, "y": 2.0}, {"x": 0.98, "y": 8.3}, {"x": 0.78, "y": 7.5}, {"x": -0.09, "y": -1.4}, {"x": -0.61, "y": -5.6}, {"x": 1.11, "y": 9.0}, {"x": 1.24, "y": 6.1}, {"x": -0.32, "y": -0.5}, {"x": -0.15, "y": -1.2}, {"x": 0.57, "y": 2.7}, {"x": 1.16, "y": 6.1}, {"x": 0.17, "y": 1.8}, {"x": -0.54, "y": 1.1}, {"x": 0.21, "y": 3.4}, {"x": -0.55, "y": -3.6}, {"x": 0.63, "y": 4.6}, {"x": 0.18, "y": -1.0}, {"x": 0.16, "y": 1.8}, {"x": 0.04, "y": -0.7}, {"x": -0.5, "y": -12.5}, {"x": 1.14, "y": 8.0}, {"x": -0.29, "y": -3.6}, {"x": -0.66, "y": -0.8}, {"x": 0.11, "y": 0.9}, {"x": -0.06, "y": -5.3}, {"x": -0.13, "y": -0.8}, {"x": -1.73, "y": -11.5}, {"x": -0.79, "y": -0.5}, {"x": -0.08, "y": -2.7}, {"x": 0.37, "y": 5.8}, {"x": -0.33, "y": -1.0}, {"x": 0.36, "y": 2.8}, {"x": 0.21, "y": -0.2}, {"x": -0.11, "y": -4.6}, {"x": -0.29, "y": -3.5}, {"x": -0.59, "y": -12.5}, {"x": -0.26, "y": -5.5}, {"x": 1.57, "y": 8.8}, {"x": -0.46, "y": 3.3}, {"x": 0.2, "y": 3.1}, {"x": 1.21, "y": 10.2}, {"x": -1.5, "y": -13.2}, {"x": 0.58, "y": 4.7}, {"x": -0.36, "y": -0.3}, {"x": -0.13, "y": -2.4}, {"x": -0.18, "y": -1.3}, {"x": -0.66, "y": -5.4}, {"x": 0.14, "y": 1.6}, {"x": 0.31, "y": 1.8}, {"x": 0.37, "y": 0.4}, {"x": 0.14, "y": 2.9}, {"x": -0.24, "y": -1.0}, {"x": 0.3, "y": 1.6}, {"x": -0.2, "y": -2.0}, {"x": -0.46, "y": -6.1}, {"x": -0.13, "y": 1.0}, {"x": 0.57, "y": 8.3}, {"x": 0.46, "y": 3.2}, {"x": -0.73, "y": -6.5}, {"x": -0.83, "y": -8.9}, {"x": 0.54, "y": 3.4}, {"x": -0.75, "y": -5.8}, {"x": -0.16, "y": -1.8}, {"x": -0.49, "y": -10.4}, {"x": 0.14, "y": -0.8}, {"x": -0.33, "y": -1.7}, {"x": -0.16, "y": 5.5}, {"x": 1.11, "y": 7.5}, {"x": -0.49, "y": -9.8}, {"x": -0.43, "y": -2.1}, {"x": 0.07, "y": 1.2}, {"x": -0.19, "y": 1.6}, {"x": 0.82, "y": 5.2}, {"x": -0.42, "y": -6.3}, {"x": -0.04, "y": -1.3}, {"x": 0.14, "y": 0.8}, {"x": -0.13, "y": -2.4}, {"x": 0.37, "y": 4.8}, {"x": -0.13, "y": -3.3}, {"x": -0.22, "y": -4.9}, {"x": 0.64, "y": 5.6}, {"x": -0.06, "y": 1.7}, {"x": 0.82, "y": 6.1}, {"x": -0.11, "y": -0.7}, {"x": 1.37, "y": 9.8}, {"x": -0.03, "y": -0.9}, {"x": 0.0, "y": 1.0}, {"x": -1.1, "y": -2.8}, {"x": 0.86, "y": 3.9}, {"x": -0.53, "y": -2.5}, {"x": -0.7, "y": -4.4}, {"x": 0.39, "y": 4.7}, {"x": 0.4, "y": 1.5}, {"x": 1.22, "y": 9.4}, {"x": 0.24, "y": 0.2}, {"x": -0.03, "y": -0.8}, {"x": -1.93, "y": -16.3}, {"x": -0.16, "y": -5.9}, {"x": -0.46, "y": -4.4}, {"x": 1.46, "y": 8.7}, {"x": 1.14, "y": 9.6}, {"x": 0.31, "y": 2.6}, {"x": 0.5, "y": 3.2}, {"x": -0.66, "y": 2.1}, {"x": -0.66, "y": -5.4}, {"x": 0.21, "y": -0.8}, {"x": 0.13, "y": 0.9}, {"x": 0.0, "y": -4.1}, {"x": -0.36, "y": -2.7}, {"x": -1.16, "y": -8.3}, {"x": 0.14, "y": -0.9}, {"x": -0.46, "y": 6.1}, {"x": -0.55, "y": -5.1}, {"x": -0.2, "y": 1.0}, {"x": 0.37, "y": 3.8}, {"x": 0.34, "y": 3.1}, {"x": -0.09, "y": -2.1}, {"x": -0.07, "y": 0.1}, {"x": -0.2, "y": -3.0}, {"x": -0.05, "y": -2.3}, {"x": -0.29, "y": -2.0}, {"x": -0.75, "y": -2.8}, {"x": 0.8, "y": 4.0}, {"x": -0.36, "y": -7.4}, {"x": -0.03, "y": -0.2}, {"x": 0.61, "y": 5.2}, {"x": -0.16, "y": -3.1}, {"x": -0.46, "y": -3.2}, {"x": 0.18, "y": 0.9}, {"x": -0.29, "y": 0.8}, {"x": -0.36, "y": -2.0}, {"x": -0.2, "y": 2.8}, {"x": -1.53, "y": -6.8}, {"x": -0.29, "y": -2.2}, {"x": 0.43, "y": 0.4}, {"x": -0.29, "y": 0.6}, {"x": 1.0, "y": 6.8}, {"x": 0.31, "y": 4.5}, {"x": -0.02, "y": 3.0}, {"x": 0.57, "y": 2.9}, {"x": -0.53, "y": -7.8}, {"x": -0.04, "y": -2.1}, {"x": -0.66, "y": 4.3}, {"x": -0.04, "y": -0.7}, {"x": 0.63, "y": 4.3}, {"x": -0.83, "y": -9.6}, {"x": 0.14, "y": 0.9}, {"x": 0.31, "y": 1.8}, {"x": -0.43, "y": -2.1}, {"x": -0.29, "y": 1.5}, {"x": 0.45, "y": 3.0}, {"x": -1.33, "y": -11.3}, {"x": 0.39, "y": 2.4}, {"x": -0.37, "y": -4.4}, {"x": -0.09, "y": -0.8}, {"x": 1.9, "y": 13.7}, {"x": 0.17, "y": 1.7}, {"x": -0.16, "y": -1.8}, {"x": -0.62, "y": -8.2}, {"x": -0.84, "y": -4.4}, {"x": -0.93, "y": -8.2}, {"x": -0.24, "y": -0.7}, {"x": -0.2, "y": -0.9}, {"x": -0.08, "y": -1.3}, {"x": -0.04, "y": 1.6}, {"x": -0.54, "y": -9.5}, {"x": -0.76, "y": -1.6}, {"x": -0.22, "y": -1.1}, {"x": -0.05, "y": -0.3}, {"x": -0.29, "y": -4.0}, {"x": 0.0, "y": -2.8}, {"x": 0.07, "y": 0.9}, {"x": 0.32, "y": -0.2}, {"x": -0.15, "y": -0.5}, {"x": 0.11, "y": 1.2}, {"x": -0.06, "y": -3.4}, {"x": -1.16, "y": -7.9}, {"x": -1.13, "y": -10.9}, {"x": 0.36, "y": 7.4}, {"x": -0.43, "y": -3.1}, {"x": 0.46, "y": 5.0}, {"x": -0.64, "y": -12.0}, {"x": 0.27, "y": 2.4}, {"x": 0.64, "y": 6.5}, {"x": -0.24, "y": -1.5}, {"x": 0.13, "y": -1.7}, {"x": 1.61, "y": 11.9}, {"x": 1.0, "y": 7.2}, {"x": -0.11, "y": -1.7}, {"x": -0.04, "y": -1.1}, {"x": -0.51, "y": -4.7}, {"x": 1.0, "y": 9.4}, {"x": -0.93, "y": -2.9}, {"x": -0.2, "y": -2.8}, {"x": -0.73, "y": -5.6}, {"x": 0.61, "y": 7.5}, {"x": -0.63, "y": -1.5}, {"x": 0.21, "y": -2.4}, {"x": 0.8, "y": 6.5}, {"x": -0.25, "y": -1.4}, {"x": 0.14, "y": 1.8}, {"x": 0.21, "y": 0.3}, {"x": 0.41, "y": 4.3}, {"x": -0.16, "y": -0.5}, {"x": 0.76, "y": 7.2}, {"x": 0.57, "y": 3.3}, {"x": 0.96, "y": 2.4}, {"x": -0.61, "y": 5.1}, {"x": -0.06, "y": 1.5}, {"x": -0.29, "y": 5.0}, {"x": 0.17, "y": -1.9}, {"x": -0.04, "y": 1.9}, {"x": -0.54, "y": 0.3}, {"x": -0.66, "y": 4.3}, {"x": 0.96, "y": 6.4}, {"x": -0.54, "y": -1.0}, {"x": 0.28, "y": -1.4}, {"x": 0.24, "y": 1.2}, {"x": -0.5, "y": -3.0}, {"x": 0.39, "y": 1.5}, {"x": 0.8, "y": 3.3}, {"x": -0.18, "y": -0.4}, {"x": 0.31, "y": -0.6}, {"x": -0.4, "y": -3.9}, {"x": 1.84, "y": 17.8}, {"x": -0.36, "y": -2.5}, {"x": -0.46, "y": -2.1}, {"x": 0.8, "y": 7.3}, {"x": 2.57, "y": 18.8}, {"x": -0.49, "y": -3.4}, {"x": 0.04, "y": -1.0}, {"x": 0.71, "y": 2.1}, {"x": -0.42, "y": 2.3}, {"x": -0.08, "y": -0.6}, {"x": -0.63, "y": 0.1}, {"x": 0.76, "y": 4.6}, {"x": 1.04, "y": 6.8}, {"x": -0.43, "y": -6.6}, {"x": -0.66, "y": -1.6}, {"x": 0.31, "y": -0.2}, {"x": 0.11, "y": -1.2}, {"x": 0.96, "y": 5.8}, {"x": -0.04, "y": 1.2}, {"x": -0.55, "y": -5.2}, {"x": -0.22, "y": -1.9}, {"x": -0.54, "y": -8.3}, {"x": 0.57, "y": 4.0}, {"x": -0.33, "y": -0.6}, {"x": 0.0, "y": 0.8}, {"x": -1.1, "y": -10.3}, {"x": -0.03, "y": -0.4}, {"x": 1.11, "y": 10.4}, {"x": 0.68, "y": 2.7}, {"x": 0.45, "y": 0.8}, {"x": 0.07, "y": -3.1}, {"x": 1.5, "y": 11.5}, {"x": -1.1, "y": -4.0}, {"x": -0.13, "y": -4.0}, {"x": 0.17, "y": 1.6}, {"x": 0.07, "y": -0.3}, {"x": -0.22, "y": -4.0}, {"x": -0.29, "y": -0.3}, {"x": 0.2, "y": 3.3}, {"x": -0.44, "y": -4.1}, {"x": 0.86, "y": 5.0}, {"x": -0.16, "y": -0.2}, {"x": -0.6, "y": -8.1}, {"x": -0.32, "y": -2.0}, {"x": -0.39, "y": 5.4}, {"x": -0.08, "y": -2.7}, {"x": 0.38, "y": 4.3}, {"x": 0.46, "y": 5.0}, {"x": -0.75, "y": -5.4}, {"x": -0.14, "y": 1.2}, {"x": 1.77, "y": 13.5}, {"x": 0.77, "y": 5.9}, {"x": -0.22, "y": -4.1}, {"x": -0.64, "y": -0.9}, {"x": 1.5, "y": 10.6}, {"x": 0.17, "y": 0.2}, {"x": 0.14, "y": 1.9}, {"x": 0.97, "y": 6.7}, {"x": 0.43, "y": 1.0}, {"x": 0.18, "y": 0.7}, {"x": -0.61, "y": -9.1}, {"x": -0.16, "y": 3.0}, {"x": 0.0, "y": -4.0}, {"x": -0.53, "y": -4.9}, {"x": -0.07, "y": -4.8}, {"x": -0.13, "y": 0.5}, {"x": -1.18, "y": -9.2}, {"x": 1.11, "y": 8.5}, {"x": -0.65, "y": -9.0}, {"x": 0.0, "y": 0.3}, {"x": 0.38, "y": 6.5}, {"x": -0.33, "y": 0.7}, {"x": 0.04, "y": 1.7}, {"x": -1.66, "y": -7.9}, {"x": 0.0, "y": 3.3}, {"x": 0.87, "y": 7.5}, {"x": -0.08, "y": -0.3}, {"x": 0.01, "y": -0.9}, {"x": -0.2, "y": -0.5}, {"x": -0.23, "y": -3.6}, {"x": 0.32, "y": 2.0}, {"x": -0.46, "y": -3.4}, {"x": 0.18, "y": -0.2}, {"x": -0.16, "y": -1.7}, {"x": 0.14, "y": 0.8}, {"x": -0.11, "y": -2.3}, {"x": -0.29, "y": -3.8}, {"x": -0.4, "y": -5.3}, {"x": 0.96, "y": 6.7}, {"x": -0.45, "y": -4.3}, {"x": -0.57, "y": -10.8}, {"x": -0.73, "y": -3.2}, {"x": 0.89, "y": 4.4}, {"x": -0.2, "y": 0.6}, {"x": 0.0, "y": -0.4}, {"x": 0.14, "y": -0.0}, {"x": -0.29, "y": -6.9}, {"x": 1.07, "y": 7.3}, {"x": -0.04, "y": -0.3}, {"x": 0.61, "y": 4.1}, {"x": 0.45, "y": 2.6}, {"x": -0.18, "y": -0.5}, {"x": 0.21, "y": 2.6}, {"x": -0.08, "y": 2.8}, {"x": -0.18, "y": -2.6}, {"x": -0.46, "y": 0.7}, {"x": -0.83, "y": -14.8}, {"x": -0.5, "y": -7.0}, {"x": -0.22, "y": 2.1}, {"x": 0.46, "y": 0.2}, {"x": -0.49, "y": -5.4}, {"x": -0.8, "y": 6.9}, {"x": 0.04, "y": 2.8}, {"x": -0.36, "y": -3.4}, {"x": -0.32, "y": -5.1}, {"x": 0.37, "y": 3.8}, {"x": -0.1, "y": 0.8}, {"x": 1.27, "y": 9.9}, {"x": -0.32, "y": 0.7}, {"x": 0.47, "y": 0.9}, {"x": -0.5, "y": -5.9}, {"x": -0.14, "y": -3.5}, {"x": -0.61, "y": -12.4}, {"x": 0.0, "y": 0.4}, {"x": -0.93, "y": -8.6}, {"x": 1.0, "y": 5.8}, {"x": -0.54, "y": -10.6}, {"x": -0.25, "y": -4.3}, {"x": 0.64, "y": 4.2}, {"x": 0.67, "y": 5.6}, {"x": -0.49, "y": 0.6}, {"x": -0.7, "y": -13.9}, {"x": 0.8, "y": 6.7}, {"x": -0.22, "y": -1.8}, {"x": 0.34, "y": -0.2}, {"x": -1.33, "y": -7.5}, {"x": -1.5, "y": -8.8}, {"x": -0.44, "y": -0.3}, {"x": 1.47, "y": 10.0}, {"x": 0.01, "y": -0.6}, {"x": 0.41, "y": -0.7}, {"x": 1.2, "y": 7.7}, {"x": -0.76, "y": -7.7}, {"x": -0.69, "y": -8.3}, {"x": -0.2, "y": 0.3}, {"x": 0.61, "y": 4.4}, {"x": 0.14, "y": -2.3}, {"x": 0.11, "y": 1.1}, {"x": 0.14, "y": 1.4}, {"x": 0.21, "y": 2.6}, {"x": -2.0, "y": -16.9}, {"x": -0.2, "y": -2.0}, {"x": -0.93, "y": -2.4}, {"x": -0.19, "y": 0.3}, {"x": -0.23, "y": -3.6}, {"x": -0.55, "y": -9.6}, {"x": 0.54, "y": 4.4}, {"x": -0.49, "y": -4.2}, {"x": -0.11, "y": -1.6}, {"x": 0.57, "y": 0.4}, {"x": -0.32, "y": -3.9}, {"x": -0.53, "y": -3.7}, {"x": -0.93, "y": -7.5}, {"x": -0.33, "y": 1.1}, {"x": -0.26, "y": 1.5}, {"x": -0.32, "y": -1.5}, {"x": -1.08, "y": -8.4}, {"x": -0.03, "y": -1.4}, {"x": 0.14, "y": 5.5}, {"x": 0.17, "y": 1.3}, {"x": -0.04, "y": 1.9}, {"x": 0.67, "y": 4.0}, {"x": -0.55, "y": -9.0}, {"x": -0.33, "y": -2.8}, {"x": 0.0, "y": -0.3}, {"x": -0.06, "y": -4.4}, {"x": -0.11, "y": -0.5}, {"x": 0.07, "y": 2.2}, {"x": -0.04, "y": -2.8}, {"x": -0.55, "y": -6.4}, {"x": -0.32, "y": 1.9}, {"x": -0.13, "y": -3.6}, {"x": -0.61, "y": -2.3}, {"x": -1.0, "y": -7.2}, {"x": -0.49, "y": -7.5}, {"x": 0.68, "y": 3.1}, {"x": 1.97, "y": 13.8}, {"x": 0.76, "y": 3.2}, {"x": 0.82, "y": 5.6}, {"x": -0.14, "y": -3.4}, {"x": -0.15, "y": -2.4}, {"x": -0.11, "y": 2.2}, {"x": 1.11, "y": 8.8}, {"x": -0.22, "y": 1.4}, {"x": -0.29, "y": 1.3}, {"x": -0.18, "y": -3.3}, {"x": 0.18, "y": 0.7}, {"x": -1.33, "y": -9.4}, {"x": 0.31, "y": 2.0}, {"x": 0.6, "y": 6.9}, {"x": 0.37, "y": 1.9}, {"x": 0.47, "y": 6.8}, {"x": 0.76, "y": 5.5}, {"x": -0.54, "y": -3.7}, {"x": -0.63, "y": -3.6}, {"x": 0.6, "y": 5.6}, {"x": -0.25, "y": -4.2}, {"x": -0.36, "y": 1.8}, {"x": -0.55, "y": -9.0}, {"x": -1.0, "y": -5.5}, {"x": -0.2, "y": -0.1}, {"x": 0.01, "y": 0.4}, {"x": -1.53, "y": -8.5}, {"x": -1.33, "y": -11.2}, {"x": 0.18, "y": 3.9}, {"x": 0.31, "y": 2.6}, {"x": 1.17, "y": 7.8}, {"x": 0.01, "y": 1.1}, {"x": -0.93, "y": -7.6}, {"x": 0.58, "y": 3.8}, {"x": 0.04, "y": 0.5}, {"x": -0.02, "y": -0.3}, {"x": 0.57, "y": 0.3}, {"x": -0.39, "y": -3.2}, {"x": -0.93, "y": -4.9}, {"x": -0.42, "y": -2.3}, {"x": -0.4, "y": -7.0}, {"x": 0.0, "y": -2.5}, {"x": 0.6, "y": 5.4}, {"x": 0.21, "y": -1.3}, {"x": -0.02, "y": -3.0}, {"x": -0.29, "y": 0.8}, {"x": 0.8, "y": 2.4}, {"x": -0.36, "y": -6.0}, {"x": -0.2, "y": -2.1}, {"x": -0.75, "y": -10.3}, {"x": -0.23, "y": -3.5}, {"x": 1.0, "y": 9.3}, {"x": -1.1, "y": -6.1}, {"x": 0.28, "y": 0.4}, {"x": 0.0, "y": -4.2}, {"x": -0.02, "y": -4.3}, {"x": -0.11, "y": -1.3}, {"x": -0.29, "y": -0.1}, {"x": 0.0, "y": -4.6}, {"x": -0.93, "y": -9.6}, {"x": -0.76, "y": -1.3}, {"x": -0.54, "y": -4.8}, {"x": -0.33, "y": -0.5}, {"x": 0.25, "y": 2.3}, {"x": -0.54, "y": -9.8}, {"x": 1.21, "y": 8.3}, {"x": -0.32, "y": -5.6}, {"x": -0.66, "y": -11.4}, {"x": 0.37, "y": 3.8}, {"x": -0.7, "y": -9.3}, {"x": 0.47, "y": 4.4}, {"x": -0.33, "y": 1.0}, {"x": -0.29, "y": -1.7}, {"x": -0.93, "y": -1.5}, {"x": -0.32, "y": -3.5}, {"x": 0.04, "y": 0.8}, {"x": -0.33, "y": -3.4}, {"x": 0.5, "y": 4.7}, {"x": -0.04, "y": 0.1}, {"x": 0.51, "y": 6.7}, {"x": 0.36, "y": 0.1}, {"x": 0.9, "y": 4.0}, {"x": -0.53, "y": -8.7}, {"x": 0.58, "y": 4.3}, {"x": 0.89, "y": 7.2}, {"x": 0.22, "y": 3.3}, {"x": 1.43, "y": 9.4}, {"x": 2.67, "y": 18.3}, {"x": -0.03, "y": -0.6}, {"x": -0.09, "y": -0.8}, {"x": -0.22, "y": -2.7}, {"x": 0.35, "y": 0.7}, {"x": 0.47, "y": 7.5}, {"x": -0.14, "y": -2.0}, {"x": -0.8, "y": -6.3}, {"x": 0.04, "y": -0.2}, {"x": -0.2, "y": -4.9}, {"x": -0.49, "y": -1.9}, {"x": -0.53, "y": -0.3}, {"x": -0.1, "y": 1.4}, {"x": 0.82, "y": 5.2}, {"x": -0.66, "y": -0.4}, {"x": 0.58, "y": 3.5}, {"x": 0.0, "y": 1.3}, {"x": 0.61, "y": 4.2}, {"x": 0.18, "y": 1.8}, {"x": 2.17, "y": 15.5}, {"x": 1.71, "y": 11.5}, {"x": -0.46, "y": -4.9}, {"x": -0.54, "y": -0.6}, {"x": -0.2, "y": -0.6}, {"x": 0.43, "y": 1.1}, {"x": 0.07, "y": 2.6}, {"x": -0.49, "y": -3.7}, {"x": -0.43, "y": -5.0}, {"x": -0.68, "y": -2.8}, {"x": -0.13, "y": -5.8}, {"x": -1.18, "y": -14.0}, {"x": -0.54, "y": -4.0}, {"x": -0.36, "y": -2.7}, {"x": 0.16, "y": 5.4}, {"x": 0.47, "y": 3.1}, {"x": 0.23, "y": 3.4}, {"x": -0.55, "y": -4.9}, {"x": -0.22, "y": -3.0}, {"x": -0.36, "y": -0.8}, {"x": -0.69, "y": -5.9}, {"x": -0.53, "y": -2.2}, {"x": 0.21, "y": 0.5}, {"x": 0.36, "y": 1.1}, {"x": -0.42, "y": -2.0}, {"x": 2.57, "y": 18.5}, {"x": -0.25, "y": -3.4}, {"x": 0.51, "y": 5.9}, {"x": -0.49, "y": -2.2}, {"x": -0.29, "y": -2.8}, {"x": -0.33, "y": -0.9}, {"x": 0.46, "y": 2.5}, {"x": -0.04, "y": -0.8}, {"x": -0.79, "y": -6.0}, {"x": -0.79, "y": -12.0}, {"x": -0.58, "y": -4.1}, {"x": -0.49, "y": 2.9}, {"x": 1.18, "y": 10.8}, {"x": 1.0, "y": 7.8}, {"x": 0.14, "y": 0.6}, {"x": 0.5, "y": 5.5}, {"x": 0.68, "y": 5.0}, {"x": 0.87, "y": 4.8}, {"x": 0.17, "y": -0.6}, {"x": -0.2, "y": -0.5}, {"x": -0.2, "y": -3.5}, {"x": 0.56, "y": 1.6}, {"x": 0.4, "y": 1.9}, {"x": -0.42, "y": 2.4}, {"x": 0.57, "y": 4.6}, {"x": -0.09, "y": 2.0}, {"x": 0.92, "y": 8.2}, {"x": 0.64, "y": 5.5}, {"x": 0.2, "y": 4.4}, {"x": 0.38, "y": 2.7}, {"x": 0.18, "y": -0.5}, {"x": 0.11, "y": -4.3}, {"x": 0.37, "y": 0.4}, {"x": 0.86, "y": 7.1}, {"x": 0.43, "y": 5.8}, {"x": -0.06, "y": -1.3}, {"x": 0.35, "y": 0.7}, {"x": 0.63, "y": 2.8}, {"x": -1.53, "y": -7.0}, {"x": -0.29, "y": -2.9}, {"x": 2.56, "y": 17.9}, {"x": 0.35, "y": 5.0}, {"x": 3.57, "y": 27.8}, {"x": 0.14, "y": 0.5}, {"x": -0.2, "y": -0.8}, {"x": -0.93, "y": -0.9}, {"x": 2.57, "y": 18.3}, {"x": 0.91, "y": 6.6}, {"x": 1.0, "y": 7.9}, {"x": 0.11, "y": 0.9}, {"x": 0.89, "y": 9.1}, {"x": -0.18, "y": -2.2}, {"x": 0.22, "y": 1.5}, {"x": 0.46, "y": 2.7}, {"x": 0.25, "y": 2.0}, {"x": -1.93, "y": -15.3}, {"x": -1.33, "y": -9.4}, {"x": 0.11, "y": -0.0}, {"x": 0.2, "y": 1.4}, {"x": 0.07, "y": 1.8}, {"x": 0.34, "y": 0.0}, {"x": 1.0, "y": 7.4}, {"x": -0.09, "y": -1.6}, {"x": -0.42, "y": -4.3}, {"x": -0.04, "y": -0.5}, {"x": -0.46, "y": 2.9}, {"x": 1.9, "y": 12.4}, {"x": -0.04, "y": 3.3}, {"x": 0.36, "y": 5.0}, {"x": -1.1, "y": -8.7}, {"x": 0.57, "y": 2.5}, {"x": 0.57, "y": 1.1}, {"x": -0.53, "y": -2.2}, {"x": -0.43, "y": -8.5}, {"x": 0.07, "y": 3.3}, {"x": 0.31, "y": 2.1}, {"x": 0.47, "y": 4.2}, {"x": -0.14, "y": 3.6}, {"x": 0.24, "y": 4.2}, {"x": -0.13, "y": 1.4}, {"x": 0.64, "y": 4.3}, {"x": -0.83, "y": -7.1}, {"x": -0.07, "y": -1.8}, {"x": -0.61, "y": 2.0}, {"x": -0.55, "y": -2.2}, {"x": -0.43, "y": -0.6}, {"x": -1.16, "y": -10.4}, {"x": -0.54, "y": -3.5}], "regressionLine": [{"x": -2.16, "y": -15.09}, {"x": 4.07, "y": 28.4}], "regression": {"slope": 6.981, "r2": 0.7128, "p": 0.0, "n": 7970}, "bottlenecks": [{"label": "Emergency \u00b7 Afternoon", "count": 155, "avgWait": 37.5}, {"label": "Orthopedics \u00b7 Afternoon", "count": 149, "avgWait": 29.0}, {"label": "Pediatrics \u00b7 Afternoon", "count": 140, "avgWait": 33.8}, {"label": "Internal Medicine \u00b7 Afternoon", "count": 138, "avgWait": 30.9}, {"label": "Cardiology \u00b7 Afternoon", "count": 133, "avgWait": 30.8}], "narrative": {"worstShift": "Afternoon", "worstShiftWait": 33.98, "restWait": 30.37, "flaggedAvgWait": 31.59, "unflaggedAvgWait": 23.86, "addedNurses": 2, "projectedNewWait": 29.3}};
+
+function isDark() {
+  const stamp = document.documentElement.getAttribute('data-theme');
+  if (stamp === 'dark') return true;
+  if (stamp === 'light') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function colorFor(name) {
+  const map = isDark() ? DATA.colorDark : DATA.colorLight;
+  return map[name] || '#898781';
+}
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+document.getElementById('subtitle').textContent =
+  `${DATA.kpis.totalVisits.toLocaleString()} patient visits across ${DATA.kpis.totalDepartments} departments, ` +
+  `${DATA.kpis.dateRange[0]} to ${DATA.kpis.dateRange[1]} (synthetic data)`;
+
+const kpiRow = document.getElementById('kpiRow');
+const kpis = [
+  { label: 'Total visits', value: DATA.kpis.totalVisits.toLocaleString(), sub: `${DATA.kpis.totalDepartments} departments` },
+  { label: 'Avg wait (all depts)', value: `${DATA.kpis.avgWaitOverall} min`, sub: 'across all visits' },
+  { label: 'Avg bed utilization', value: `${DATA.kpis.avgUtilization}%`, sub: 'of capacity' },
+  { label: 'Shifts flagged understaffed', value: `${DATA.kpis.pctShiftsFlagged}%`, sub: 'top quartile patients/nurse' },
+  { label: 'Avg satisfaction', value: `${DATA.kpis.avgSatisfaction} / 5`, sub: 'patient-reported' },
+  { label: 'Projected wait reduction', value: `${DATA.kpis.projectedReductionMin} min`, sub: `+${DATA.narrative.addedNurses} nurses on flagged shifts` },
+];
+kpiRow.innerHTML = kpis.map(k => `
+  <div class="kpi">
+    <div class="label">${k.label}</div>
+    <div class="value">${k.value}</div>
+    <div class="sub">${k.sub}</div>
+  </div>`).join('');
+
+document.getElementById('scatterDesc').textContent =
+  `Each point = one department/date/shift; demeaned by department. Slope ${DATA.regression.slope} min per ` +
+  `patient/nurse, R²=${DATA.regression.r2}, p<0.001, n=${DATA.regression.n.toLocaleString()}.`;
+
+const gridColor = () => cssVar('--gridline');
+const tickColor = () => cssVar('--text-muted');
+const textColor = () => cssVar('--text-primary');
+
+Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+Chart.defaults.color = tickColor();
+
+function baseScales(extra) {
+  return Object.assign({
+    x: { grid: { color: gridColor() }, ticks: { color: tickColor() } },
+    y: { grid: { color: gridColor() }, ticks: { color: tickColor() }, beginAtZero: true },
+  }, extra || {});
+}
+
+const charts = [];
+
+function buildWaitChart() {
+  const ctx = document.getElementById('waitChart');
+  const sorted = [...DATA.waitVsTarget].sort((a,b) => b.pctAboveTarget - a.pctAboveTarget);
+  const chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(d => d.name),
+      datasets: [
+        {
+          label: 'Avg wait (min)',
+          data: sorted.map(d => d.avgWait),
+          backgroundColor: sorted.map(d => colorFor(d.name)),
+          borderRadius: 4,
+          barThickness: 22,
+        },
+        {
+          label: 'Target (min)',
+          data: sorted.map(d => d.target),
+          type: 'scatter',
+          pointStyle: 'rectRot',
+          pointRadius: 7,
+          pointBackgroundColor: 'transparent',
+          pointBorderColor: textColor(),
+          pointBorderWidth: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top', labels: { color: tickColor() } } },
+      scales: baseScales(),
+    },
+  });
+  charts.push(chart);
+}
+
+function buildScatterChart() {
+  const ctx = document.getElementById('scatterChart');
+  const chart = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        {
+          label: 'Shift observations (sampled)',
+          data: DATA.scatter,
+          backgroundColor: cssVar('--series-1'),
+          pointRadius: 3,
+          pointHoverRadius: 5,
+        },
+        {
+          label: 'Fitted regression',
+          data: DATA.regressionLine,
+          type: 'line',
+          borderColor: cssVar('--text-primary'),
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top', labels: { color: tickColor() } } },
+      scales: baseScales({
+        x: { grid: { color: gridColor() }, ticks: { color: tickColor() }, title: { display: true, text: 'Patients per nurse (dept-demeaned)', color: tickColor() } },
+        y: { grid: { color: gridColor() }, ticks: { color: tickColor() }, title: { display: true, text: 'Avg wait, min (dept-demeaned)', color: tickColor() } },
+      }),
+    },
+  });
+  charts.push(chart);
+}
+
+function buildUtilChart() {
+  const ctx = document.getElementById('utilChart');
+  const sorted = [...DATA.bedUtilization].sort((a,b) => b.avg - a.avg);
+  const chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(d => d.name),
+      datasets: [
+        {
+          label: 'Avg utilization %',
+          data: sorted.map(d => d.avg),
+          backgroundColor: sorted.map(d => colorFor(d.name)),
+          borderRadius: 4,
+          barThickness: 22,
+        },
+        {
+          label: '100% capacity',
+          data: sorted.map(() => 100),
+          type: 'line',
+          borderColor: cssVar('--text-muted'),
+          borderWidth: 2,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top', labels: { color: tickColor() } } },
+      scales: baseScales(),
+    },
+  });
+  charts.push(chart);
+}
+
+function buildTrendChart() {
+  const ctx = document.getElementById('trendChart');
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: DATA.monthlyTrend.map(d => monthNames[d.month - 1]),
+      datasets: [{
+        label: 'Total visits',
+        data: DATA.monthlyTrend.map(d => d.visits),
+        borderColor: cssVar('--series-1'),
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 3,
+        tension: 0.25,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: baseScales(),
+    },
+  });
+  charts.push(chart);
+}
+
+function buildBottleneckChart() {
+  const ctx = document.getElementById('bottleneckChart');
+  const chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DATA.bottlenecks.map(d => d.label),
+      datasets: [{
+        label: 'Flagged shift count',
+        data: DATA.bottlenecks.map(d => d.count),
+        backgroundColor: cssVar('--series-1'),
+        borderRadius: 4,
+        barThickness: 20,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: baseScales(),
+    },
+  });
+  charts.push(chart);
+}
+
+function buildFindings() {
+  const n = DATA.narrative;
+  const items = [
+    `Within-department regression: each additional patient per nurse adds <b>${DATA.regression.slope} minutes</b> of wait (R²=${DATA.regression.r2}, p&lt;0.001).`,
+    `Emergency's <b>${n.worstShift}</b> shift runs the longest waits (<b>${n.worstShiftWait} min</b> vs ${n.restWait} min for other shifts) &mdash; driven by peak arrival volume, not overnight staffing.`,
+    `<b>${DATA.kpis.pctShiftsFlagged}%</b> of department/shift instances are flagged as understaffed (top quartile patients/nurse), averaging <b>${n.flaggedAvgWait} min</b> wait vs ${n.unflaggedAvgWait} min in normally staffed shifts.`,
+    `Adding ${n.addedNurses} nurses to flagged bottleneck shifts is projected to cut average wait from ${n.flaggedAvgWait} to <b>${n.projectedNewWait} min</b>.`,
+    `Pediatrics runs the highest bed utilization of any department, exceeding 100% average occupancy &mdash; a capacity, not staffing, bottleneck.`,
+  ];
+  document.getElementById('findingsList').innerHTML = items.map(i => `<li>${i}</li>`).join('');
+}
+
+function rebuildAll() {
+  charts.forEach(c => c.destroy());
+  charts.length = 0;
+  buildWaitChart();
+  buildScatterChart();
+  buildUtilChart();
+  buildTrendChart();
+  buildBottleneckChart();
+}
+
+buildFindings();
+rebuildAll();
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  setTimeout(rebuildAll, 0);
+});
+</script>
+</body>
+</html>

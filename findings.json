@@ -1,0 +1,270 @@
+{
+  "dataset_overview": {
+    "total_visits": 54130,
+    "total_departments": 8,
+    "date_range": [
+      "2024-01-01",
+      "2024-12-31"
+    ]
+  },
+  "department_summary": [
+    {
+      "department_id": 1,
+      "visit_count": 23271,
+      "avg_wait_minutes": 32.08,
+      "median_wait_minutes": 32.2,
+      "avg_los_hours": 27.13,
+      "avg_satisfaction": 3.55,
+      "readmit_rate": 0.09,
+      "department_name": "Emergency",
+      "target_wait_minutes": 30,
+      "total_beds": 90,
+      "pct_above_target": 6.93
+    },
+    {
+      "department_id": 5,
+      "visit_count": 5369,
+      "avg_wait_minutes": 28.99,
+      "median_wait_minutes": 28.5,
+      "avg_los_hours": 66.17,
+      "avg_satisfaction": 3.77,
+      "readmit_rate": 0.05,
+      "department_name": "Pediatrics",
+      "target_wait_minutes": 40,
+      "total_beds": 40,
+      "pct_above_target": -27.52
+    },
+    {
+      "department_id": 6,
+      "visit_count": 5974,
+      "avg_wait_minutes": 27.44,
+      "median_wait_minutes": 27.3,
+      "avg_los_hours": 65.95,
+      "avg_satisfaction": 3.87,
+      "readmit_rate": 0.05,
+      "department_name": "Internal Medicine",
+      "target_wait_minutes": 45,
+      "total_beds": 58,
+      "pct_above_target": -39.02
+    },
+    {
+      "department_id": 2,
+      "visit_count": 4651,
+      "avg_wait_minutes": 26.96,
+      "median_wait_minutes": 26.6,
+      "avg_los_hours": 65.54,
+      "avg_satisfaction": 3.9,
+      "readmit_rate": 0.05,
+      "department_name": "Cardiology",
+      "target_wait_minutes": 45,
+      "total_beds": 46,
+      "pct_above_target": -40.09
+    },
+    {
+      "department_id": 7,
+      "visit_count": 3621,
+      "avg_wait_minutes": 23.61,
+      "median_wait_minutes": 23.4,
+      "avg_los_hours": 65.77,
+      "avg_satisfaction": 3.93,
+      "readmit_rate": 0.05,
+      "department_name": "Obstetrics & Gynecology",
+      "target_wait_minutes": 40,
+      "total_beds": 38,
+      "pct_above_target": -40.97
+    },
+    {
+      "department_id": 3,
+      "visit_count": 3959,
+      "avg_wait_minutes": 26.28,
+      "median_wait_minutes": 26.1,
+      "avg_los_hours": 65.91,
+      "avg_satisfaction": 3.92,
+      "readmit_rate": 0.06,
+      "department_name": "Orthopedics",
+      "target_wait_minutes": 45,
+      "total_beds": 41,
+      "pct_above_target": -41.6
+    },
+    {
+      "department_id": 8,
+      "visit_count": 2975,
+      "avg_wait_minutes": 27.84,
+      "median_wait_minutes": 27.6,
+      "avg_los_hours": 66.6,
+      "avg_satisfaction": 3.93,
+      "readmit_rate": 0.05,
+      "department_name": "Neurology",
+      "target_wait_minutes": 50,
+      "total_beds": 33,
+      "pct_above_target": -44.33
+    },
+    {
+      "department_id": 4,
+      "visit_count": 4310,
+      "avg_wait_minutes": 31.25,
+      "median_wait_minutes": 31.1,
+      "avg_los_hours": 65.2,
+      "avg_satisfaction": 3.95,
+      "readmit_rate": 0.04,
+      "department_name": "General Surgery",
+      "target_wait_minutes": 60,
+      "total_beds": 42,
+      "pct_above_target": -47.91
+    }
+  ],
+  "staffing_wait_regression": {
+    "n_shifts": 7970,
+    "method": "department-demeaned (fixed-effects) OLS",
+    "slope_minutes_per_patient_per_nurse": 6.981,
+    "intercept_minutes": -0.0,
+    "r_value": 0.8443,
+    "r_squared": 0.7128,
+    "p_value": 0.0,
+    "std_err": 0.0496,
+    "pooled_naive_slope": 5.055,
+    "pooled_naive_r_squared": 0.5081
+  },
+  "anova_wait_by_department": {
+    "f_statistic": 1128.07,
+    "p_value": 0.0,
+    "n_groups": 8
+  },
+  "ttest_emergency_worst_shift": {
+    "worst_shift": "Afternoon",
+    "worst_shift_mean_wait": 33.98,
+    "rest_mean_wait": 30.37,
+    "mean_diff_minutes": 3.61,
+    "t_statistic": 36.56,
+    "p_value": 1.207975922054121e-284,
+    "n_worst_shift": 11016,
+    "n_rest": 12255
+  },
+  "bed_utilization": [
+    {
+      "department_id": 5,
+      "avg_concurrent_patients": 41.6,
+      "peak_concurrent_patients": 69,
+      "total_beds": 40,
+      "avg_utilization_pct": 104.1,
+      "peak_utilization_pct": 172.5,
+      "department_name": "Pediatrics"
+    },
+    {
+      "department_id": 1,
+      "avg_concurrent_patients": 75.3,
+      "peak_concurrent_patients": 134,
+      "total_beds": 90,
+      "avg_utilization_pct": 83.7,
+      "peak_utilization_pct": 148.9,
+      "department_name": "Emergency"
+    },
+    {
+      "department_id": 6,
+      "avg_concurrent_patients": 46.2,
+      "peak_concurrent_patients": 75,
+      "total_beds": 58,
+      "avg_utilization_pct": 79.7,
+      "peak_utilization_pct": 129.3,
+      "department_name": "Internal Medicine"
+    },
+    {
+      "department_id": 4,
+      "avg_concurrent_patients": 33.0,
+      "peak_concurrent_patients": 53,
+      "total_beds": 42,
+      "avg_utilization_pct": 78.7,
+      "peak_utilization_pct": 126.2,
+      "department_name": "General Surgery"
+    },
+    {
+      "department_id": 2,
+      "avg_concurrent_patients": 35.8,
+      "peak_concurrent_patients": 62,
+      "total_beds": 46,
+      "avg_utilization_pct": 77.8,
+      "peak_utilization_pct": 134.8,
+      "department_name": "Cardiology"
+    },
+    {
+      "department_id": 3,
+      "avg_concurrent_patients": 30.7,
+      "peak_concurrent_patients": 53,
+      "total_beds": 41,
+      "avg_utilization_pct": 74.8,
+      "peak_utilization_pct": 129.3,
+      "department_name": "Orthopedics"
+    },
+    {
+      "department_id": 7,
+      "avg_concurrent_patients": 28.1,
+      "peak_concurrent_patients": 45,
+      "total_beds": 38,
+      "avg_utilization_pct": 74.0,
+      "peak_utilization_pct": 118.4,
+      "department_name": "Obstetrics & Gynecology"
+    },
+    {
+      "department_id": 8,
+      "avg_concurrent_patients": 23.6,
+      "peak_concurrent_patients": 38,
+      "total_beds": 33,
+      "avg_utilization_pct": 71.4,
+      "peak_utilization_pct": 115.2,
+      "department_name": "Neurology"
+    }
+  ],
+  "staffing_flags": {
+    "flagged_shift_count": 1998,
+    "total_shift_count": 7970,
+    "flagged_avg_wait": 31.59,
+    "unflagged_avg_wait": 23.86,
+    "flagged_avg_patients_per_nurse": 2.0,
+    "unflagged_avg_patients_per_nurse": 0.89,
+    "top_bottleneck_combos": [
+      {
+        "department_name": "Emergency",
+        "shift_type": "Afternoon",
+        "flagged_shift_count": 155,
+        "avg_patients_per_nurse": 3.632106549364614,
+        "avg_wait_minutes": 37.45957084596795
+      },
+      {
+        "department_name": "Orthopedics",
+        "shift_type": "Afternoon",
+        "flagged_shift_count": 149,
+        "avg_patients_per_nurse": 1.5665548098434003,
+        "avg_wait_minutes": 28.97678588562817
+      },
+      {
+        "department_name": "Pediatrics",
+        "shift_type": "Afternoon",
+        "flagged_shift_count": 140,
+        "avg_patients_per_nurse": 2.5416666666666665,
+        "avg_wait_minutes": 33.81683070302714
+      },
+      {
+        "department_name": "Internal Medicine",
+        "shift_type": "Afternoon",
+        "flagged_shift_count": 138,
+        "avg_patients_per_nurse": 1.8530365769496204,
+        "avg_wait_minutes": 30.90588505692532
+      },
+      {
+        "department_name": "Cardiology",
+        "shift_type": "Afternoon",
+        "flagged_shift_count": 133,
+        "avg_patients_per_nurse": 1.8471177944862154,
+        "avg_wait_minutes": 30.773442889608305
+      }
+    ]
+  },
+  "staffing_reallocation_projection": {
+    "added_nurses_per_flagged_shift": 2,
+    "base_nurses_estimate": 10,
+    "patients_per_nurse_before": 2.0,
+    "patients_per_nurse_after": 1.67,
+    "projected_wait_reduction_minutes": 2.3,
+    "projected_new_avg_wait_minutes": 29.3
+  }
+}
