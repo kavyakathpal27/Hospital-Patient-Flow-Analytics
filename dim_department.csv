@@ -1,0 +1,9 @@
+department_id,department_name,total_beds,target_wait_minutes,base_daily_volume,is_emergency,base_nurses_per_shift,base_doctors_per_shift
+1,Emergency,90,30,55,True,10,4
+2,Cardiology,46,45,14,False,5,2
+3,Orthopedics,41,45,12,False,5,2
+4,General Surgery,42,60,13,False,6,3
+5,Pediatrics,40,40,16,False,4,2
+6,Internal Medicine,58,45,18,False,6,3
+7,Obstetrics & Gynecology,38,40,11,False,5,2
+8,Neurology,33,50,9,False,4,2

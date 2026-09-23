@@ -1,0 +1,9 @@
+department_id,avg_concurrent_patients,peak_concurrent_patients,total_beds,avg_utilization_pct,peak_utilization_pct,department_name
+5,41.6,69,40,104.1,172.5,Pediatrics
+1,75.3,134,90,83.7,148.9,Emergency
+6,46.2,75,58,79.7,129.3,Internal Medicine
+4,33.0,53,42,78.7,126.2,General Surgery
+2,35.8,62,46,77.8,134.8,Cardiology
+3,30.7,53,41,74.8,129.3,Orthopedics
+7,28.1,45,38,74.0,118.4,Obstetrics & Gynecology
+8,23.6,38,33,71.4,115.2,Neurology
